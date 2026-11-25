@@ -40,12 +40,16 @@ Wird `Code.gs` später geändert: *Bereitstellen → Bereitstellungen verwalten 
 
 Neues Repository anlegen, den Inhalt dieses Ordners hochladen (`data/` und `legacy-server/` weglassen), dann *Settings → Pages → Deploy from a branch → `main` → Ordner `/docs`*. Die Seite ist danach unter `https://<benutzername>.github.io/<repository>/` erreichbar.
 
-## Dass nichts verloren geht
+## Schutz vor Verlust und Vandalismus
 
-- Löschen in der App **entfernt nichts endgültig**: Es füllt nur die Spalte `deleted_at`. Wiederherstellen: Zelle in der Tabelle leeren.
-- Die Google-Tabelle hat eine **Versionsverlauf** (*Datei → Versionsverlauf*), auch alte Stände und Fehleingaben lassen sich zurückholen.
-- Oben rechts gibt es **Sicherung (JSON)**: lädt alle Daten, auch gelöschte, als Datei herunter.
-- Gleichzeitiges Speichern wird vom Skript nacheinander abgearbeitet, Einträge überschreiben sich nicht gegenseitig.
+- **Löschcode:** Ensembles und Kommentare löschen sowie Gelöschtes wiederherstellen geht nur mit einem Code, den nur die Planungsleitung kennt. Eintragen und Ändern geht ohne Code. Der Code steht **nicht im Quelltext**, sondern in den Skripteigenschaften des Google-Skripts:
+  *Apps-Script-Editor → Projekteinstellungen (Zahnrad) → Skripteigenschaften → Eigenschaft hinzufügen*: Name `LOESCHCODE`, Wert = der gewählte Code. Solange keiner gesetzt ist, ist Löschen gesperrt. Nach 8 falschen Eingaben gibt es 10 Minuten Pause. Die Seite merkt sich den Code nur, solange sie offen ist.
+- **Papierkorb:** Löschen markiert nur („weiches Löschen“), nichts verschwindet. Im Seitenfuß öffnet „Papierkorb“ die Liste; dort lässt sich ein Ensemble (samt Stücken) oder ein Kommentar mit dem Löschcode wiederherstellen. In der Tabelle geht es auch von Hand: Zelle `deleted_at` leeren.
+- **Wochensicherung:** Einmal im Apps-Script-Editor die Funktion `sicherungEinrichten` ausführen. Danach legt das Skript jeden Montag gegen 3 Uhr Kopien der Datenblätter an (ausgeblendete Blätter „Sicherung JJJJ-MM-TT …“, die letzten 8 Wochen). Einblenden: *Ansicht → Ausgeblendete Blätter*. Sofort sichern: Funktion `sicherungJetzt` ausführen.
+- **Versionsverlauf** der Google-Tabelle (*Datei → Versionsverlauf*) zeigt auch geänderte Einträge.
+- **Sicherung (JSON):** Der Knopf im Seitenfuß lädt alle Daten als Datei herunter.
+- **Gleichzeitiges Speichern** wird vom Skript nacheinander abgearbeitet, Einträge überschreiben sich nicht gegenseitig.
+- **Lokal testen:** Der Testserver (`npm start`) nutzt den Löschcode `lokal`, änderbar mit `LOESCHCODE=... npm start`.
 
 ## Datenschutz und Zugang
 

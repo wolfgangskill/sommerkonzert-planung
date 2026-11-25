@@ -215,3 +215,7 @@ footer{border-top:1px solid var(--orange);padding:14px 0 30px;font-size:12px;col
 }
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .suche input{width:100%}
+
+.trash-kopf{margin:14px 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--grau)}
+.trash-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:.5pt solid var(--linie)}
+.trash-row .btn{flex:none}

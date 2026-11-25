@@ -10,7 +10,7 @@
     try { res = await promise; } catch { throw new Error('Keine Verbindung zum Speicher. Bitte Internetverbindung prüfen.'); }
     let j;
     try { j = await res.json(); } catch { throw new Error('Der Speicher hat unerwartet geantwortet. Ist die Bereitstellung des Skripts aktuell?'); }
-    if (j.ok === false) throw new Error(j.error || 'Der Speicher hat einen Fehler gemeldet.');
+    if (j.ok === false) { const e = new Error(j.error || 'Der Speicher hat einen Fehler gemeldet.'); e.code = j.code; throw e; }
     return j;
   }
   const need = () => { if (!url) throw new Error('Der Speicher ist noch nicht eingerichtet (BACKEND_URL in config.js).'); };

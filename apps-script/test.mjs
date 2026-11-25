@@ -12,8 +12,8 @@ const ctx = vm.createContext({ console });
 vm.runInContext(code, ctx);
 const { handleSafe_ } = ctx;
 
-function memStore() {
-  const t = {}; let rev = 0;
+function memStore(props = { LOESCHCODE: 'geheim' }) {
+  const t = {}; let rev = 0; const pr = { ...props };
   const tab = (n) => (t[n] ||= []);
   return {
     all: (n) => tab(n).map((r) => ({ ...r })),
@@ -21,6 +21,7 @@ function memStore() {
     nextId: (n) => tab(n).reduce((m, r) => Math.max(m, r.id), 0) + 1,
     insert: (n, rec) => tab(n).push({ ...rec }),
     update: (n, id, rec) => { const i = tab(n).findIndex((r) => r.id === Number(id)); tab(n)[i] = { ...rec }; },
+    prop: (k) => pr[k] || '', setProp: (k, v) => { pr[k] = v; },
     rev: () => String(rev), bump: () => { rev++; },
   };
 }
@@ -46,7 +47,7 @@ test('Eckdaten des Konzerts ändern, Konzert nicht löschbar oder neu anlegbar',
   const c = call(s, { action: 'all' }).concerts[0];
   assert.equal(c.date, '2027-06-26'); assert.equal(c.venue, 'Kleiner Saal'); assert.equal(c.time_frame_min, 90);
   assert.equal(call(s, { action: 'update', table: 'concerts', id: 1, data: { date: '2027-02-30' } }).ok, false);
-  assert.equal(call(s, { action: 'delete', table: 'concerts', id: 1 }).ok, false);
+  assert.equal(call(s, { action: 'delete', delete_code: 'geheim', table: 'concerts', id: 1 }).ok, false);
   assert.equal(call(s, { action: 'insert', table: 'concerts', data: { title: 'x' } }).ok, false);
 });
 
@@ -70,7 +71,7 @@ test('Ensemble mit Stücken speichern, ändern, Stücke entfernen, löschen (nur
   assert.equal(r2.snapshot.pieces.length, 3, 'entferntes Stück bleibt als gelöscht erhalten');
   assert.equal(live(r2.snapshot.ensembles).length, 1, 'kein zweites Ensemble entstanden');
 
-  const r3 = call(s, { action: 'delete', table: 'ensembles', id: 1 });
+  const r3 = call(s, { action: 'delete', delete_code: 'geheim', table: 'ensembles', id: 1 });
   assert.equal(r3.ok, true);
   assert.equal(live(r3.snapshot.ensembles).length, 0);
   assert.equal(r3.snapshot.ensembles.length, 1, 'Zeile bleibt erhalten');
@@ -111,7 +112,7 @@ test('Aufgaben und Kommentare', () => {
   const c = call(s, { action: 'insert', table: 'comments', data: { concert_id: 1, author: 'Anna', body: 'Hallo <b>x</b>' } });
   assert.equal(c.snapshot.comments[0].body, 'Hallo <b>x</b>');
   assert.match(call(s, { action: 'insert', table: 'comments', data: { concert_id: 1, author: '', body: 'x' } }).error, /Name fehlt/);
-  assert.equal(call(s, { action: 'delete', table: 'comments', id: c.id }).snapshot.comments[0].deleted_at !== '', true);
+  assert.equal(call(s, { action: 'delete', delete_code: 'geheim', table: 'comments', id: c.id }).snapshot.comments[0].deleted_at !== '', true);
   assert.equal(call(s, { action: 'update', table: 'comments', id: c.id, data: { body: 'neu' } }).ok, false);
   assert.equal(call(s, { action: 'boese' }).ok, false);
 });
@@ -150,9 +151,9 @@ test('Zuordnung Nacht/Licht ist optional und wird geprüft', () => {
 });
 
 // ---- Blatt-Speicher mit einer Attrappe von Google Sheets (prüft die Spalten-Zuordnung) ----
-function fakeGoogle(sheetsInit = {}) {
+function fakeGoogle(sheetsInit = {}, propsInit = {}) {
   const sheets = {};
-  const mkSheet = (rows) => {
+  const mkSheet = (rows, name = '') => {
     const grid = rows.map((r) => [...r]);
     const get = (r, c) => (grid[r - 1] && grid[r - 1][c - 1] !== undefined ? grid[r - 1][c - 1] : '');
     const set = (r, c, v) => { while (grid.length < r) grid.push([]); while (grid[r - 1].length < c - 1) grid[r - 1].push(''); grid[r - 1][c - 1] = v; };
@@ -162,18 +163,23 @@ function fakeGoogle(sheetsInit = {}) {
       setValue: (v) => { set(r, c, v); return range(r, c, nr, nc); },
       setNumberFormat: () => range(r, c, nr, nc), setFontWeight: () => range(r, c, nr, nc),
     });
-    return {
-      grid, getRange: range,
+    const sh = {
+      name, hidden: false, grid, getRange: range,
       getLastRow: () => { let n = 0; grid.forEach((row, i) => { if (row.some((v) => v !== '' && v != null)) n = i + 1; }); return n; },
       getLastColumn: () => grid.reduce((m, row) => { let k = 0; row.forEach((v, j) => { if (v !== '' && v != null) k = j + 1; }); return Math.max(m, k); }, 0),
       getMaxRows: () => 1000, getMaxColumns: () => 26, insertColumnAfter: () => {}, setFrozenRows: () => {},
+      getName: () => sh.name,
+      setName: (n) => { delete sheets[sh.name]; sh.name = n; sheets[n] = sh; return sh; },
+      hideSheet: () => { sh.hidden = true; return sh; },
+      copyTo: () => { const c = mkSheet(grid, 'Kopie von ' + sh.name); sheets[c.name] = c; return c; },
     };
+    return sh;
   };
-  Object.entries(sheetsInit).forEach(([n, rows]) => { sheets[n] = mkSheet(rows); });
-  const props = {};
+  Object.entries(sheetsInit).forEach(([n, rows]) => { sheets[n] = mkSheet(rows, n); });
+  const props = { ...propsInit };
   const c2 = vm.createContext({
     console,
-    SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSpreadsheetTimeZone: () => 'Europe/Berlin', getSheetByName: (n) => sheets[n] || null, insertSheet: (n) => (sheets[n] = mkSheet([])) }) },
+    SpreadsheetApp: { getActiveSpreadsheet: () => ({ getSpreadsheetTimeZone: () => 'Europe/Berlin', getSheetByName: (n) => sheets[n] || null, insertSheet: (n) => (sheets[n] = mkSheet([], n)), getSheets: () => Object.values(sheets), deleteSheet: (s) => { delete sheets[s.name]; } }) },
     Utilities: { formatDate: (d) => d.toISOString().slice(0, 10) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props[k] ?? null, setProperty: (k, v) => { props[k] = v; } }) },
   });
@@ -218,4 +224,105 @@ test('Blatt-Speicher: frisches Blatt, Konzert anlegen, Ensemble speichern', () =
   assert.deepEqual(sheets.Stuecke.grid[0].slice(0, 5), ['id', 'concert_id', 'ensemble_id', 'position', 'title']);
   assert.equal(c2.handleSafe_(store(), { action: 'all' }).pieces[0].mood, 'beides');
   assert.equal(c2.handleSafe_(store(), { action: 'all' }).ensembles[0].headcount, 'ca. 40');
+});
+
+// ---- Löschcode, Wiederherstellen, Sicherung ----
+test('Löschen braucht den Löschcode', () => {
+  const s = start();
+  const e = call(s, { action: 'save_ensemble', data: { concert_id: 1, name: 'A', lead: 'B' }, pieces: [{ title: 'x' }] });
+  assert.equal(e.ok, true);
+  const ohne = call(s, { action: 'delete', table: 'ensembles', id: 1 });
+  assert.equal(ohne.ok, false); assert.equal(ohne.code, 'need_code'); assert.match(ohne.error, /Löschcode eingeben/);
+  const falsch = call(s, { action: 'delete', table: 'ensembles', id: 1, delete_code: 'nein' });
+  assert.equal(falsch.ok, false); assert.equal(falsch.code, 'need_code'); assert.match(falsch.error, /stimmt nicht/);
+  assert.equal(live(call(s, { action: 'all' }).ensembles).length, 1, 'ohne Code nichts gelöscht');
+  assert.equal(call(s, { action: 'delete', table: 'ensembles', id: 1, delete_code: 'geheim' }).ok, true);
+  assert.equal(live(call(s, { action: 'all' }).ensembles).length, 0);
+});
+
+test('Ohne eingerichteten Löschcode bleibt Löschen gesperrt', () => {
+  const s = memStore({}); call(s, { action: 'init' });
+  call(s, { action: 'insert', table: 'comments', data: { concert_id: 1, author: 'A', body: 'x' } });
+  const r = call(s, { action: 'delete', table: 'comments', id: 1, delete_code: '' });
+  assert.equal(r.ok, false); assert.equal(r.code, 'gesperrt'); assert.match(r.error, /noch kein Löschcode/);
+  assert.equal(call(s, { action: 'restore', table: 'comments', id: 1, delete_code: 'irgendwas' }).code, 'gesperrt');
+});
+
+test('Pause nach zu vielen falschen Eingaben, richtiger Code hilft dann nicht sofort', () => {
+  const s = start();
+  call(s, { action: 'insert', table: 'comments', data: { concert_id: 1, author: 'A', body: 'x' } });
+  for (let i = 0; i < 8; i++) assert.equal(call(s, { action: 'delete', table: 'comments', id: 1, delete_code: 'falsch' + i }).code, 'need_code');
+  const gesperrt = call(s, { action: 'delete', table: 'comments', id: 1, delete_code: 'geheim' });
+  assert.equal(gesperrt.ok, false); assert.equal(gesperrt.code, 'gesperrt'); assert.match(gesperrt.error, /10 Minuten/);
+  // nach Ablauf der Pause geht es wieder, und der Zähler startet neu
+  s.setProp('LOESCH_FEHLER', JSON.stringify({ n: 8, t: Date.now() - 11 * 60 * 1000 }));
+  assert.equal(call(s, { action: 'delete', table: 'comments', id: 1, delete_code: 'geheim' }).ok, true);
+  assert.equal(JSON.parse(s.prop('LOESCH_FEHLER') || '{}').n || 0, 0, 'Zähler nach Erfolg zurückgesetzt');
+});
+
+test('Wiederherstellen: Ensemble samt Stücken und Kommentare, nur mit Code', () => {
+  const s = start();
+  call(s, { action: 'save_ensemble', data: { concert_id: 1, name: 'Chor', lead: 'Frau A' }, pieces: [{ title: 'Eins' }, { title: 'Zwei' }] });
+  call(s, { action: 'insert', table: 'comments', data: { concert_id: 1, author: 'B', body: 'Hallo' } });
+  call(s, { action: 'delete', table: 'ensembles', id: 1, delete_code: 'geheim' });
+  call(s, { action: 'delete', table: 'comments', id: 1, delete_code: 'geheim' });
+  let all = call(s, { action: 'all' });
+  assert.equal(live(all.ensembles).length, 0); assert.equal(live(all.comments).length, 0);
+  assert.equal(call(s, { action: 'restore', table: 'ensembles', id: 1 }).code, 'need_code', 'ohne Code kein Wiederherstellen');
+  assert.equal(call(s, { action: 'restore', table: 'ensembles', id: 1, delete_code: 'geheim' }).ok, true);
+  assert.equal(call(s, { action: 'restore', table: 'comments', id: 1, delete_code: 'geheim' }).ok, true);
+  all = call(s, { action: 'all' });
+  assert.deepEqual(live(all.ensembles).map((e) => e.name), ['Chor']);
+  assert.deepEqual(live(all.pieces).map((p) => p.title), ['Eins', 'Zwei']);
+  assert.deepEqual(live(all.comments).map((c) => c.body), ['Hallo']);
+  // schon vorhandene Einträge und nicht erlaubte Tabellen
+  assert.match(call(s, { action: 'restore', table: 'ensembles', id: 1, delete_code: 'geheim' }).error, /nicht gelöscht/);
+  assert.equal(call(s, { action: 'restore', table: 'pieces', id: 1, delete_code: 'geheim' }).ok, false);
+  assert.equal(call(s, { action: 'restore', table: 'concerts', id: 1, delete_code: 'geheim' }).ok, false);
+  assert.equal(call(s, { action: 'restore', table: 'ensembles', id: 99, delete_code: 'geheim' }).ok, false);
+});
+
+test('Ein einzeln entferntes Stück bleibt auch nach Wiederherstellen des Ensembles entfernt', () => {
+  const s = start();
+  call(s, { action: 'save_ensemble', data: { concert_id: 1, name: 'Chor', lead: 'Frau A' }, pieces: [{ title: 'Eins' }, { title: 'Zwei' }] });
+  call(s, { action: 'save_ensemble', id: 1, data: { concert_id: 1, name: 'Chor', lead: 'Frau A' }, pieces: [{ id: 1, title: 'Eins' }] }); // "Zwei" entfernt
+  call(s, { action: 'delete', table: 'ensembles', id: 1, delete_code: 'geheim' });
+  call(s, { action: 'restore', table: 'ensembles', id: 1, delete_code: 'geheim' });
+  assert.deepEqual(live(call(s, { action: 'all' }).pieces).map((p) => p.title), ['Eins']);
+});
+
+test('Wochensicherung: ausgeblendete Kopien, Ersatz am selben Tag, alte werden entfernt', () => {
+  const header = ['id', 'x'];
+  const { ctx: c2, sheets } = fakeGoogle({ Konzerte: [header, [1, 'a']], Ensembles: [header, [1, 'b']], Stuecke: [header], Kommentare: [header, [1, 'c']], Aufgaben: [header], Notizen: [['frei']] });
+  const ss = c2.SpreadsheetApp.getActiveSpreadsheet();
+  const namen = () => Object.keys(sheets).sort();
+  c2.backup_(ss, '2026-12-07', '2026-10-12');
+  assert.deepEqual(namen().filter((n) => n.startsWith('Sicherung')), ['Sicherung 2026-12-07 Ensembles', 'Sicherung 2026-12-07 Konzerte', 'Sicherung 2026-12-07 Kommentare', 'Sicherung 2026-12-07 Stuecke'].sort());
+  assert.equal(sheets['Sicherung 2026-12-07 Konzerte'].hidden, true);
+  assert.equal(sheets['Sicherung 2026-12-07 Konzerte'].grid[1][1], 'a', 'Inhalt wurde kopiert');
+  assert.ok(sheets.Notizen && sheets.Aufgaben, 'andere Blätter bleiben unberührt');
+  // gleicher Tag noch einmal: keine Doppelten
+  c2.backup_(ss, '2026-12-07', '2026-10-12');
+  assert.equal(namen().filter((n) => n.startsWith('Sicherung')).length, 4);
+  // spätere Woche: neue Kopien, die ältesten verschwinden
+  sheets.Konzerte.grid[1][1] = 'neu';
+  c2.backup_(ss, '2026-12-14', '2026-12-10');
+  const rest = namen().filter((n) => n.startsWith('Sicherung'));
+  assert.equal(rest.length, 4); assert.ok(rest.every((n) => n.includes('2026-12-14')));
+  assert.equal(sheets['Sicherung 2026-12-14 Konzerte'].grid[1][1], 'neu');
+});
+
+test('sicherungEinrichten legt einen wöchentlichen Auslöser an und ersetzt einen alten', () => {
+  const { ctx: c2 } = fakeGoogle({ Konzerte: [['id'], [1]], Ensembles: [['id']], Stuecke: [['id']], Kommentare: [['id']] });
+  const triggers = [{ getHandlerFunction: () => 'sicherungJetzt', id: 'alt' }, { getHandlerFunction: () => 'anderes', id: 'fremd' }];
+  const gebaut = [];
+  c2.ScriptApp = {
+    WeekDay: { MONDAY: 'MONDAY' },
+    getProjectTriggers: () => triggers,
+    deleteTrigger: (t) => { triggers.splice(triggers.indexOf(t), 1); },
+    newTrigger: (fn) => ({ timeBased: () => ({ onWeekDay: (d) => ({ atHour: (h) => ({ create: () => { gebaut.push([fn, d, h]); } }) }) }) }),
+  };
+  c2.sicherungEinrichten();
+  assert.deepEqual(JSON.parse(JSON.stringify(gebaut)), [['sicherungJetzt', 'MONDAY', 3]]);
+  assert.deepEqual(triggers.map((t) => t.id), ['fremd'], 'alter Sicherungs-Auslöser entfernt, fremder bleibt');
 });

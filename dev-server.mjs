@@ -1,6 +1,7 @@
 // Lokaler Testserver: liefert docs/ aus und ersetzt das Google-Skript durch dieselbe Logik
 // (apps-script/Code.gs) mit einer Datei als Speicher. So lässt sich alles ohne Google ausprobieren.
 // Start: npm start   (Port per PORT ändern, Daten liegen in data/dev.json)
+// Löschcode lokal: "lokal" (ändern mit LOESCHCODE=... npm start)
 import http from 'node:http';
 import vm from 'node:vm';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -18,14 +19,17 @@ vm.runInContext(readFileSync(join(root, 'apps-script', 'Code.gs'), 'utf8'), ctx)
 
 const tables = existsSync(dataFile) ? JSON.parse(readFileSync(dataFile, 'utf8')) : { _rev: 0 };
 const tab = (n) => (tables[n] ||= []);
+const persist = () => { mkdirSync(dirname(dataFile), { recursive: true }); writeFileSync(dataFile, JSON.stringify(tables)); };
 const store = {
   all: (n) => tab(n).map((r) => ({ ...r })),
   find: (n, id) => tab(n).find((r) => r.id === Number(id)) || null,
   nextId: (n) => tab(n).reduce((m, r) => Math.max(m, r.id), 0) + 1,
   insert: (n, rec) => { tab(n).push({ ...rec }); },
   update: (n, id, rec) => { tab(n)[tab(n).findIndex((r) => r.id === Number(id))] = { ...rec }; },
+  prop: (k) => (k === 'LOESCHCODE' ? (process.env.LOESCHCODE || 'lokal') : ((tables._props || {})[k] || '')),
+  setProp: (k, v) => { (tables._props ||= {})[k] = v; persist(); },
   rev: () => String(tables._rev),
-  bump: () => { tables._rev++; mkdirSync(dirname(dataFile), { recursive: true }); writeFileSync(dataFile, JSON.stringify(tables)); },
+  bump: () => { tables._rev++; persist(); },
 };
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.txt': 'text/plain; charset=utf-8' };

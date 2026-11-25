@@ -32,7 +32,7 @@ var TABLES = {
     }
   },
   ensembles: {
-    sheet: 'Ensembles', ops: ['delete'], parent: 'concert_id', refs: { concert_id: CONCERT_REF },
+    sheet: 'Ensembles', ops: ['delete'], restorable: true, parent: 'concert_id', refs: { concert_id: CONCERT_REF },
     fields: {
       concert_id: { t: 'i', req: true, label: 'Konzert' },
       name:       { t: 's', max: 100, req: true, label: 'Name des Ensembles' },
@@ -66,7 +66,7 @@ var TABLES = {
     }
   },
   comments: {
-    sheet: 'Kommentare', ops: ['insert', 'delete'], parent: 'concert_id', refs: { concert_id: CONCERT_REF },
+    sheet: 'Kommentare', ops: ['insert', 'delete'], restorable: true, parent: 'concert_id', refs: { concert_id: CONCERT_REF },
     fields: {
       concert_id: { t: 'i', req: true, label: 'Konzert' },
       author:     { t: 's', max: 100, req: true, label: 'Name' },
@@ -76,6 +76,7 @@ var TABLES = {
 };
 
 function fail_(msg) { throw new Error(msg); }
+function failCode_(msg, code) { var e = new Error(msg); e.code = code; throw e; }
 function pad2_(n) { return (n < 10 ? '0' : '') + n; }
 
 /* ---------- Prüfen und Umwandeln (streng beim Schreiben) ---------- */
@@ -142,6 +143,26 @@ function normalize_(table, raw) {
   return rec;
 }
 
+/* ---------- Löschcode: Löschen und Wiederherstellen nur mit Code ---------- */
+// Der Code steht in den Skripteigenschaften (Projekteinstellungen), nie im Quelltext. Ist keiner gesetzt,
+// bleibt Löschen gesperrt. Nach 8 falschen Eingaben gibt es 10 Minuten Pause (gegen Durchprobieren).
+var CODE_FEHLER_MAX = 8, CODE_PAUSE_MS = 10 * 60 * 1000;
+function requireDeleteCode_(store, req) {
+  var expected = store.prop('LOESCHCODE');
+  if (!expected) failCode_('Löschen ist gesperrt, weil noch kein Löschcode eingerichtet ist (siehe README).', 'gesperrt');
+  var st = {};
+  try { st = JSON.parse(store.prop('LOESCH_FEHLER') || '{}'); } catch (e) { st = {}; }
+  var now = Date.now();
+  if (st.n >= CODE_FEHLER_MAX && now - st.t < CODE_PAUSE_MS) failCode_('Zu viele falsche Eingaben. Bitte in 10 Minuten erneut versuchen.', 'gesperrt');
+  if (typeof req.delete_code !== 'string' || req.delete_code === '') failCode_('Bitte den Löschcode eingeben.', 'need_code');
+  if (req.delete_code !== expected) {
+    var n = (st.n >= CODE_FEHLER_MAX && now - st.t >= CODE_PAUSE_MS) ? 1 : (st.n || 0) + 1;
+    store.setProp('LOESCH_FEHLER', JSON.stringify({ n: n, t: now }));
+    failCode_('Der Löschcode stimmt nicht.', 'need_code');
+  }
+  if (st.n) store.setProp('LOESCH_FEHLER', '{}');
+}
+
 /* ---------- Aktionen ---------- */
 function snapshot_(store) {
   var out = { ok: true, rev: store.rev() };
@@ -180,6 +201,8 @@ function handle(store, req) {
     if (!spec || spec.ops.indexOf(op) < 0) fail_('Diese Aktion ist nicht erlaubt.');
   }
 
+  if (a === 'delete' || a === 'restore') requireDeleteCode_(store, req);
+
   var res;
   if (a === 'init') {
     // legt das eine Konzert an, falls es noch fehlt (läuft unter Sperre, doppelt anlegen ist ausgeschlossen)
@@ -212,6 +235,15 @@ function handle(store, req) {
     store.update(table, cur.id, next);
     if (table === 'concerts') { /* nichts weiter */ } else touchConcert(next.concert_id);
     res = { ok: true, id: cur.id };
+
+  } else if (a === 'restore') {
+    if (!spec || !spec.restorable) fail_('Diese Aktion ist nicht erlaubt.');
+    var gone = store.find(table, Number(req.id));
+    if (!gone) fail_('Eintrag nicht gefunden.');
+    if (!gone.deleted_at) fail_('Der Eintrag ist nicht gelöscht.');
+    store.update(table, gone.id, Object.assign({}, gone, { updated_at: now, deleted_at: '' }));
+    touchConcert(gone.concert_id);
+    res = { ok: true, id: gone.id };
 
   } else if (a === 'save_ensemble') {
     // Ensemble samt Stückliste in einem Schritt speichern (neu oder ändern)
@@ -262,7 +294,7 @@ function handle(store, req) {
 
 function handleSafe_(store, req) {
   try { return handle(store, req); }
-  catch (err) { return { ok: false, error: String(err && err.message ? err.message : err) }; }
+  catch (err) { return { ok: false, error: String(err && err.message ? err.message : err), code: err && err.code ? err.code : undefined }; }
 }
 
 /* ---------- Google-Tabelle als Speicher ---------- */
@@ -354,6 +386,8 @@ function makeSheetStore() {
       write(t, e.row, rec);
       e.rec = normalize_(t, rec);
     },
+    prop: function (k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; },
+    setProp: function (k, v) { PropertiesService.getScriptProperties().setProperty(k, v); },
     rev: function () { return PropertiesService.getScriptProperties().getProperty('rev') || '0'; },
     bump: function () {
       var p = PropertiesService.getScriptProperties();
@@ -391,4 +425,43 @@ function doPost(e) {
 function einrichten() {
   var store = makeSheetStore();
   Object.keys(TABLES).forEach(function (t) { store.all(t); });
+}
+
+/* ---------- Sicherung: jede Woche eine Kopie der Datenblätter (ausgeblendet, 8 Wochen lang) ---------- */
+var SICHERUNG_BLAETTER = ['Konzerte', 'Ensembles', 'Stuecke', 'Kommentare'];
+var SICHERUNG_TAGE = 56;
+
+// Legt Kopien der Datenblätter als ausgeblendete Blätter "Sicherung JJJJ-MM-TT <Name>" an und
+// räumt Sicherungen auf, die älter als "grenze" (JJJJ-MM-TT) sind. Mehrfach am selben Tag: ersetzt.
+function backup_(ss, stamp, grenze) {
+  SICHERUNG_BLAETTER.forEach(function (name) {
+    var src = ss.getSheetByName(name);
+    if (!src) return;
+    var title = 'Sicherung ' + stamp + ' ' + name, old = ss.getSheetByName(title);
+    if (old) ss.deleteSheet(old);
+    var copy = src.copyTo(ss);
+    copy.setName(title);
+    copy.hideSheet();
+  });
+  ss.getSheets().forEach(function (sh) {
+    var m = /^Sicherung (\d{4}-\d{2}-\d{2}) /.exec(sh.getName());
+    if (m && m[1] < grenze) ss.deleteSheet(sh);
+  });
+}
+
+// Sicherung sofort ausführen (auch der Auslöser ruft diese Funktion auf)
+function sicherungJetzt() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), tz = ss.getSpreadsheetTimeZone();
+  var heute = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var grenze = Utilities.formatDate(new Date(Date.now() - SICHERUNG_TAGE * 864e5), tz, 'yyyy-MM-dd');
+  backup_(ss, heute, grenze);
+}
+
+// Einmal von Hand ausführen: richtet die wöchentliche Sicherung ein (montags gegen 3 Uhr) und macht gleich eine
+function sicherungEinrichten() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'sicherungJetzt') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sicherungJetzt').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(3).create();
+  sicherungJetzt();
 }

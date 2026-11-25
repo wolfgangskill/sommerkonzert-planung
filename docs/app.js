@@ -231,6 +231,7 @@ function render() {
   if (draft.text && $('#comment-body')) $('#comment-body').value = draft.text;
   if (draft.name && $('#comment-name')) $('#comment-name').value = draft.name;
   refreshPieces();
+  const nTrash = trashItems(); $('#papierkorb').textContent = nTrash.ens.length + nTrash.com.length ? `Papierkorb (${nTrash.ens.length + nTrash.com.length})` : 'Papierkorb';
 }
 
 /* ---------- Modal ---------- */
@@ -246,8 +247,10 @@ const fieldHtml = (f, v) => {
 const fieldsHtml = (fields, values) => fields.map((f) => Array.isArray(f)
   ? `<div class="zeile2">${f.map((g) => fieldHtml(g, values[g.name])).join('')}</div>` : fieldHtml(f, values[f.name])).join('');
 
-function openModal({ title, html, submit = 'Speichern', onSubmit, required = [] }) {
+let cancelHook = null;
+function openModal({ title, html, submit = 'Speichern', onSubmit, required = [], onCancel }) {
   const m = $('#modal');
+  cancelHook = onCancel || null;
   m.innerHTML = `<form class="box" novalidate><h2>${esc(title)}</h2>${html}
     <div class="fehler" role="alert"></div>
     <div class="knoepfe"><button type="button" class="btn" data-action="close-modal">Abbrechen</button><button class="btn primär" type="submit">${esc(submit)}</button></div></form>`;
@@ -261,12 +264,16 @@ function openModal({ title, html, submit = 'Speichern', onSubmit, required = [] 
     const err = (msg) => { $('.fehler', form).textContent = msg; };
     for (const [name, label] of required) if (!String(form.elements[name]?.value || '').trim()) return err(`${label} fehlt.`);
     btn.disabled = true; err('');
-    try { await onSubmit(form); closeModal(); }
+    try { await onSubmit(form); closeModal(false); }
     catch (ex) { err(ex.message); btn.disabled = false; }
   });
 }
-function closeModal() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#modal').hidden) closeModal(); });
+function closeModal(abgebrochen) {
+  const m = $('#modal'); m.hidden = true; m.innerHTML = '';
+  const h = cancelHook; cancelHook = null;
+  if (abgebrochen && h) h();
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#modal').hidden) closeModal(true); });
 
 const formValues = (form) => Object.fromEntries(new FormData(form).entries());
 
@@ -348,15 +355,71 @@ function concertModal() {
   });
 }
 
+/* ---------- Löschcode (Löschen und Wiederherstellen sind geschützt) ---------- */
+const CODE_KEY = 'slgm-sommerkonzert-loeschcode';
+const readCode = () => { try { return sessionStorage.getItem(CODE_KEY) || ''; } catch { return ''; } };
+const saveCode = (c) => { try { sessionStorage.setItem(CODE_KEY, c); } catch { /* egal */ } };
+const clearCode = () => { try { sessionStorage.removeItem(CODE_KEY); } catch { /* egal */ } };
+
+function askDeleteCode(hinweis) {
+  return new Promise((resolve) => {
+    openModal({
+      title: 'Löschcode', submit: 'Weiter', onCancel: () => resolve(null), required: [['code', 'Der Löschcode']],
+      html: `<p class="sub" style="margin:0 0 12px">Löschen und Wiederherstellen sind geschützt. Den Löschcode kennt nur die Planungsleitung.</p>
+        ${hinweis ? `<p class="fehler" style="margin:0 0 10px">${esc(hinweis)}</p>` : ''}
+        ${fieldHtml({ name: 'code', label: 'Löschcode', type: 'password', required: true, attrs: 'autocomplete="off"' }, '')}`,
+      onSubmit: async (form) => { resolve(form.elements.code.value); },
+    });
+  });
+}
+
+// Führt eine geschützte Aktion aus: fragt bei Bedarf den Löschcode ab und merkt ihn, solange die Seite offen ist
+async function adminAction(payload) {
+  let code = readCode(), hinweis = '';
+  for (let versuch = 0; versuch < 3; versuch++) {
+    if (!code) { code = await askDeleteCode(hinweis); if (!code) return false; }
+    try { await save({ ...payload, delete_code: code }); saveCode(code); return true; }
+    catch (err) {
+      if (err.code !== 'need_code') throw err; // z. B. gesperrt: die Meldung zeigt der Aufrufer
+      clearCode(); code = ''; hinweis = err.message;
+    }
+  }
+  toast(hinweis || 'Das hat nicht geklappt.');
+  return false;
+}
+
+/* ---------- Papierkorb ---------- */
+function trashItems() {
+  const d = state.data, cid = state.vm.concert.id, neu = (a, b) => b.deleted_at.localeCompare(a.deleted_at);
+  const ens = d.ensembles.filter((e) => e.deleted_at && e.concert_id === cid).sort(neu)
+    .map((e) => ({ ...e, nPieces: d.pieces.filter((p) => p.ensemble_id === e.id && !p.deleted_at).length }));
+  const com = d.comments.filter((c) => c.deleted_at && c.concert_id === cid).sort(neu);
+  return { ens, com };
+}
+function showTrash() {
+  const { ens, com } = trashItems();
+  const btn = (table, id) => `<button class="btn klein" data-action="restore" data-table="${table}" data-id="${id}">Wiederherstellen</button>`;
+  const ensRows = ens.map((e) => `<div class="trash-row"><div><b>${esc(e.name)}</b><div class="meta">Leitung ${esc(e.lead)} · ${e.nPieces} ${e.nPieces === 1 ? 'Stück' : 'Stücke'} · gelöscht ${esc(fmtStamp(e.deleted_at))}</div></div>${btn('ensembles', e.id)}</div>`).join('');
+  const comRows = com.map((k) => `<div class="trash-row"><div><b>${esc(k.author)}</b><div class="meta">${esc(k.body.length > 140 ? k.body.slice(0, 140) + ' …' : k.body)}</div><div class="meta">gelöscht ${esc(fmtStamp(k.deleted_at))}</div></div>${btn('comments', k.id)}</div>`).join('');
+  const m = $('#modal'); cancelHook = null;
+  m.innerHTML = `<div class="box"><h2>Papierkorb</h2>
+    <p class="sub" style="margin:0 0 10px">Gelöschtes bleibt hier erhalten. Wiederherstellen braucht den Löschcode.</p>
+    ${ens.length ? `<h3 class="trash-kopf">Ensembles</h3>${ensRows}` : ''}
+    ${com.length ? `<h3 class="trash-kopf">Kommentare</h3>${comRows}` : ''}
+    ${ens.length || com.length ? '' : '<div class="leer">Der Papierkorb ist leer.</div>'}
+    <div class="knoepfe"><button type="button" class="btn" data-action="close-modal">Schließen</button></div></div>`;
+  m.hidden = false;
+}
+
 /* ---------- Aktionen ---------- */
 const actions = {
-  'close-modal': () => closeModal(),
+  'close-modal': () => closeModal(true),
   'add-ensemble': () => ensembleModal(null),
   'edit-ensemble': (el) => { const e = state.vm.ensembles.find((x) => x.id === Number(el.dataset.id)); if (e) ensembleModal(e); },
   'del-ensemble': async (el) => {
     const e = state.vm.ensembles.find((x) => x.id === Number(el.dataset.id));
-    if (!e || !confirm(`Ensemble „${e.name}“ mit allen Stückvorschlägen löschen?`)) return;
-    await save({ action: 'delete', table: 'ensembles', id: e.id }); toast('Ensemble gelöscht');
+    if (!e || !confirm(`Ensemble „${e.name}“ mit allen Stückvorschlägen löschen? Es kommt in den Papierkorb, zum Löschen brauchst du den Löschcode.`)) return;
+    if (await adminAction({ action: 'delete', table: 'ensembles', id: e.id })) toast('Ensemble gelöscht (im Papierkorb)');
   },
   'add-piece': () => {
     const list = $('#stueckListe'); list.insertAdjacentHTML('beforeend', pieceRow());
@@ -367,9 +430,13 @@ const actions = {
     if (!list.children.length) list.insertAdjacentHTML('beforeend', pieceRow());
   },
   'edit-concert': () => concertModal(),
+  restore: async (el) => {
+    try { if (await adminAction({ action: 'restore', table: el.dataset.table, id: Number(el.dataset.id) })) toast('Wiederhergestellt'); }
+    finally { showTrash(); }
+  },
   'del-comment': async (el) => {
-    if (!confirm('Kommentar löschen?')) return;
-    await save({ action: 'delete', table: 'comments', id: Number(el.dataset.id) });
+    if (!confirm('Kommentar löschen? Zum Löschen brauchst du den Löschcode.')) return;
+    if (await adminAction({ action: 'delete', table: 'comments', id: Number(el.dataset.id) })) toast('Kommentar gelöscht (im Papierkorb)');
   },
   'set-view': (el) => { if (VIEWS[el.dataset.v]) { ui.view = el.dataset.v; saveUi(); refreshPieces(); } },
   'set-mood': (el) => { if (FILTERS[el.dataset.v]) { ui.mood = el.dataset.v; saveUi(); refreshPieces(); } },
@@ -407,6 +474,11 @@ document.addEventListener('submit', async (e) => {
     await save({ action: 'insert', table: 'comments', data: { concert_id: state.vm.concert.id, author: name, body } });
     $('#comment-body').value = '';
   } catch (ex) { err(ex.message); btn.disabled = false; }
+});
+
+$('#papierkorb').addEventListener('click', () => {
+  if (!state.vm) { toast('Die Planung lädt noch. Einen Moment bitte.'); return; }
+  showTrash();
 });
 
 $('#sicherung').addEventListener('click', async () => {
