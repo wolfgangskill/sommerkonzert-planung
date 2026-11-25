@@ -1,0 +1,11 @@
+{
+  "name": "slgm-konzertplanung",
+  "version": "0.2.0",
+  "description": "Gemeinsame Konzertplanung am Sächsischen Landesgymnasium für Musik Dresden (statische Seite + Google-Tabelle)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node dev-server.mjs",
+    "test": "node --test apps-script/test.mjs"
+  }
+}

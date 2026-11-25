@@ -1,0 +1,8 @@
+data/
+node_modules/
+.DS_Store
+/*.mp3
+/legacy-server/
+/index.html
+/sommerkonzert-seite.zip
+.tools/

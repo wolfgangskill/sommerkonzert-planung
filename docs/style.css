@@ -1,0 +1,217 @@
+/* Roboto lokal (fonts/) – kein Abruf bei Google */
+@font-face{font-family:Roboto;font-weight:400;font-style:normal;font-display:swap;src:url(fonts/roboto-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:Roboto;font-weight:400;font-style:italic;font-display:swap;src:url(fonts/roboto-latin-400-italic.woff2) format("woff2")}
+@font-face{font-family:Roboto;font-weight:500;font-style:normal;font-display:swap;src:url(fonts/roboto-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:Roboto;font-weight:700;font-style:normal;font-display:swap;src:url(fonts/roboto-latin-700-normal.woff2) format("woff2")}
+
+/* SLGM-Hausstil: Farben. Der Himmel oben ist die bewusst inszenierte Ausnahme (dunkel zu Licht). */
+:root{
+  --orange:#EE7100; --orange-dunkel:#d66500; --rot:#AD1641; --gruen:#1F993D;
+  --text:#1A1A1A; --grau:#767676; --linie:#BFBFBF; --flaeche:#F7F7F7;
+  --nacht:#02030a; --nacht2:#0a0f2a;
+  --font:Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);font-size:15px;line-height:1.5;color:var(--text);background:#fff}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+[hidden]{display:none!important}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+/* ---------- Himmel: Sterne, Crawl, Morgenlicht ---------- */
+.hero{position:relative;height:min(86vh,700px);min-height:480px;color:#fff;overflow:hidden;
+  background:radial-gradient(ellipse 120% 80% at 50% 115%,#161d4a 0%,var(--nacht2) 45%,var(--nacht) 100%)}
+.hero canvas{position:absolute;inset:0;width:100%;height:100%}
+/* immer: weicher Übergang in die helle Seite */
+.hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:110px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(255,255,255,0),#fff)}
+/* nach dem Intro: Morgenlicht steigt auf */
+.dawn{position:absolute;left:-10%;right:-10%;bottom:-40%;height:80%;pointer-events:none;opacity:0;transform:translateY(30%);
+  background:radial-gradient(ellipse 50% 60% at 50% 60%,rgba(255,170,60,.75) 0%,rgba(238,113,0,.35) 38%,rgba(238,113,0,0) 72%);
+  transition:opacity 3.5s ease,transform 4.5s cubic-bezier(.2,.7,.2,1)}
+.hero.done .dawn{opacity:1;transform:none}
+
+.prelude{position:absolute;inset:0;display:grid;place-items:center;padding:0 8vw 80px;text-align:center;font-size:clamp(18px,3.2vw,26px);color:rgba(255,255,255,.82);opacity:0}
+.stage{position:absolute;inset:0;perspective:380px;overflow:hidden}
+.crawl-wrap{position:absolute;left:50%;bottom:150px;width:min(620px,84vw);height:150%;transform-origin:50% 100%;transform:translateX(-50%) rotateX(26deg)}
+.crawl{position:absolute;left:0;right:0;top:0;text-align:justify;hyphens:auto;font-weight:700;font-size:clamp(22px,4.4vw,34px);line-height:1.45;color:#ffd9a6;transform:translateY(var(--from,900px))}
+.crawl h2{margin:0 0 .15em;text-align:center;color:var(--orange);font-size:1.6em;letter-spacing:.06em;text-transform:uppercase}
+.crawl h3{margin:0 0 1.6em;text-align:center;color:var(--orange);font-size:1.15em;letter-spacing:.2em}
+.crawl p{margin:0 0 1.1em}
+.hero.play .prelude{animation:prelude 1.6s ease forwards}
+.hero.play .crawl{animation:crawl var(--dur,60s) linear 1.6s both}
+@keyframes prelude{0%{opacity:0}20%,80%{opacity:1}100%{opacity:0}}
+@keyframes crawl{from{transform:translateY(var(--from,600px))}to{transform:translateY(var(--to,-1400px))}}
+
+.motto{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 6vw 120px;text-align:center;opacity:0;pointer-events:none;transition:opacity 2s ease .3s}
+.motto .vorspann{margin:0;font-size:12px;letter-spacing:.35em;text-transform:uppercase;color:rgba(255,255,255,.65)}
+.motto .zeile{width:84px;height:2px;background:var(--orange);margin:6px 0;box-shadow:0 0 14px var(--orange)}
+.motto h1{margin:0;font-size:clamp(34px,7.4vw,74px);line-height:1.05;font-weight:700;letter-spacing:-.01em;text-shadow:0 0 30px rgba(120,150,255,.35)}
+.motto p{margin:0;font-size:clamp(15px,2.2vw,20px);color:rgba(255,255,255,.85)}
+.hero.done .motto,.hero.wait .motto{opacity:1}
+.hero.play .motto{opacity:0;transition:none}
+.hero.play #zumFormular{display:none}
+.hero.done .stage,.hero.done .prelude,.hero.wait .stage,.hero.wait .prelude{display:none}
+
+.hero-tools{position:absolute;left:0;right:0;bottom:44px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;z-index:2}
+.btn-hero{background:rgba(2,3,10,.35);color:#fff;border:1px solid rgba(255,255,255,.55);padding:9px 18px;border-radius:4px;cursor:pointer;font-size:14px;backdrop-filter:blur(2px)}
+.btn-hero:hover{border-color:#fff}
+.btn-hero.primär{background:var(--orange);border-color:var(--orange);font-weight:500}
+.btn-hero.primär:hover{background:var(--orange-dunkel);border-color:var(--orange-dunkel)}
+/* Startzustand: ein großer Knopf "Intro starten" (der Klick erlaubt dem Browser auch den Ton) */
+.hero.wait #introReplay{order:-1;background:var(--orange);border-color:var(--orange);font-weight:500;font-size:16px;padding:12px 28px;animation:puls 2.4s ease-in-out infinite}
+.hero.wait #introReplay:hover{background:var(--orange-dunkel);border-color:var(--orange-dunkel)}
+.hero.wait #zumFormular{background:rgba(2,3,10,.35);border-color:rgba(255,255,255,.55);font-weight:400}
+@keyframes puls{0%,100%{box-shadow:0 0 0 0 rgba(238,113,0,.55)}50%{box-shadow:0 0 0 10px rgba(238,113,0,0)}}
+@media (prefers-reduced-motion:reduce){.hero.wait #introReplay{animation:none}}
+
+/* Bewegung reduziert: das Intro startet nicht von selbst (siehe app.js), lässt sich aber per Knopf ansehen */
+@media (prefers-reduced-motion:reduce){
+  .hero.done .motto{transition:none}
+  .dawn{transition:none}
+}
+
+/* ---------- Seite ---------- */
+main.wrap{padding-bottom:40px}
+.titelblock{text-align:center;padding:10px 0 6px}
+.titel{margin:0;font-size:30px;line-height:1.15;font-weight:700;text-transform:uppercase;letter-spacing:.01em}
+.untertitel{margin:6px 0 0;font-size:20px;font-weight:700}
+.titelzusatz{margin:4px 0 0;font-size:12px;color:var(--grau)}
+.linie{width:100%;max-width:520px;height:0;border:0;border-top:1px solid var(--orange);margin:20px auto 0}
+.sub{color:var(--grau);font-size:13px}
+
+.leiste{margin:28px 0 10px;display:grid;grid-template-columns:repeat(2,minmax(0,220px));gap:14px;justify-content:center}
+.karte{border:.5pt solid var(--linie);border-top:4px solid var(--orange);padding:12px 16px;background:#fff}
+.karte .zahl{font-size:30px;font-weight:700;line-height:1.1}
+.karte .label{font-size:12px;color:var(--grau);margin-top:2px}
+.balken{height:4px;background:var(--flaeche);margin:10px 0 6px;border:.5pt solid var(--linie)}
+.balken i{display:block;height:100%;width:0;background:var(--orange);transition:width .6s ease}
+.balken.warn i{background:var(--rot)}
+.zeitinfo{font-size:13px}
+.warn-text{color:var(--rot);font-weight:500}
+@media (max-width:520px){.karte .zahl{font-size:24px}.karte{padding:10px}}
+
+.eckdaten{margin:16px 0 4px;padding:12px 16px;background:var(--flaeche);border-left:4px solid var(--orange);font-size:14px;display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.eckdaten b{font-weight:500}
+.kasten{background:var(--flaeche);border-left:4px solid var(--orange);padding:10px 14px;font-size:14px;white-space:pre-wrap;margin:12px 0}
+
+.bereich{margin:28px 0 34px}
+.komm{max-width:760px}
+.abschnittskopf{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+h2.abschnitt{margin:0;font-size:16px;font-weight:700;color:var(--rot)}
+h2.abschnitt::before{content:"✦";color:var(--orange);margin-right:.5em;font-size:.85em}
+
+/* Knöpfe und Formulare */
+.btn{border:1px solid var(--linie);background:#fff;padding:8px 14px;border-radius:4px;cursor:pointer;font-size:14px}
+.btn:hover{border-color:var(--text)}
+.btn.primär{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:500}
+.btn.primär:hover{background:var(--orange-dunkel);border-color:var(--orange-dunkel)}
+.btn.klein{padding:4px 10px;font-size:13px}
+.btn.gefahr:hover{border-color:var(--rot);color:var(--rot)}
+.btn[disabled]{opacity:.55;cursor:default}
+.iconbtn{border:0;background:transparent;cursor:pointer;color:var(--grau);padding:2px 7px;font-size:16px;line-height:1;border-radius:3px}
+.iconbtn:hover{color:var(--text);background:var(--flaeche)}
+.iconbtn.gefahr:hover{color:var(--rot)}
+.linkbtn{border:0;background:transparent;padding:0;color:var(--grau);text-decoration:underline;cursor:pointer;font-size:12px}
+.linkbtn:hover{color:var(--text)}
+.feld{display:block;margin-bottom:12px}
+.feld>span{display:block;font-size:12px;color:var(--grau);margin-bottom:3px}
+.feld .pflicht{color:var(--rot)}
+input[type=text],input[type=number],input[type=date],input[type=time],select,textarea{width:100%;border:.5pt solid var(--linie);border-radius:3px;padding:8px 10px;background:#fff;font-size:15px}
+input::placeholder,textarea::placeholder{color:var(--grau);font-style:italic;opacity:1}
+textarea{min-height:64px;resize:vertical}
+.zeile2{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.fehler{color:var(--rot);font-weight:500;font-size:13px;min-height:20px}
+.leer{border:.5pt dashed var(--linie);padding:24px 18px;text-align:center;color:var(--grau);font-size:14px}
+
+/* Ensembles */
+.ensemble{border:.5pt solid var(--linie);border-top:4px solid var(--orange);margin-bottom:16px;padding:14px 18px 12px;background:#fff}
+.ensemble header{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.ensemble h3{margin:0;font-size:18px;line-height:1.25}
+.meta{font-size:13px;color:var(--grau);margin-top:2px}
+.meta b{font-weight:500;color:var(--text)}
+.aktion{display:flex;gap:6px}
+.notiz{margin:10px 0 0;padding:8px 12px;background:var(--flaeche);border-left:4px solid var(--orange);font-size:13px;white-space:pre-wrap}
+.tabelle{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+.tabelle th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--grau);text-align:left;padding:6px 8px 6px 0;border-bottom:.5pt solid var(--linie)}
+.tabelle td{padding:7px 8px 7px 0;vertical-align:top;border-bottom:.5pt solid var(--linie)}
+.tabelle td.t{font-weight:500}
+.tabelle .min{white-space:nowrap;text-align:right;padding-right:0}
+.summe{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--grau);margin-top:8px}
+@media (max-width:640px){
+  .tabelle thead{display:none}
+  .tabelle,.tabelle tbody,.tabelle tr,.tabelle td{display:block;width:100%}
+  .tabelle tr{padding:8px 0;border-bottom:.5pt solid var(--linie)}
+  .tabelle td{border:0;padding:1px 0}
+  .tabelle td.min{text-align:left}
+  .tabelle td:empty{display:none}
+}
+
+/* Aufgaben, Kommentare */
+.aufgabe{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:.5pt solid var(--linie)}
+.aufgabe input[type=checkbox]{margin-top:4px;width:17px;height:17px;accent-color:var(--orange);flex:none}
+.aufgabe .inhalt{flex:1;min-width:0}
+.aufgabe.erledigt .titel-text{text-decoration:line-through;color:var(--grau)}
+.ueberfaellig{color:var(--rot);font-weight:500}
+.komform{margin:0 0 14px}
+.kommentar{padding:10px 0;border-bottom:.5pt solid var(--linie)}
+.kommentar .kopfzeile{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--grau)}
+.kommentar .kopfzeile b{color:var(--text);font-weight:500}
+.kommentar p{margin:3px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Modal, Toast */
+.modal{position:fixed;inset:0;background:rgba(2,3,10,.6);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:4vh 16px;z-index:10}
+.modal .box{background:#fff;border-top:4px solid var(--orange);width:100%;max-width:640px;padding:20px 22px 22px}
+.modal .box h2{margin:0 0 14px;font-size:18px;color:var(--rot)}
+.modal .knoepfe{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+.stuecke-kopf{display:flex;align-items:baseline;justify-content:space-between;margin:14px 0 8px;font-size:14px;font-weight:700}
+.stuecke-kopf small{font-weight:400;color:var(--grau);font-size:12px}
+.stueck{border:.5pt solid var(--linie);background:var(--flaeche);padding:10px 10px 4px;margin-bottom:10px;position:relative}
+.stueck .feld{margin-bottom:8px}
+.stueck .weg{position:absolute;top:4px;right:6px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--text);color:#fff;padding:8px 16px;border-radius:4px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:90vw}
+.toast.zeigen{opacity:1}
+
+footer{border-top:1px solid var(--orange);padding:14px 0 30px;font-size:12px;color:var(--grau);font-style:italic}
+.fuss-aktion{margin-left:12px;font-style:normal}
+@media print{.hero,.btn,.iconbtn,.eckdaten .btn,.fuss-aktion,form{display:none!important}.raster{display:block}.ensemble{break-inside:avoid}}
+
+/* ---------- Werkzeugleiste, Ansichten, Zuordnung ---------- */
+.werkzeug{display:flex;gap:14px 22px;flex-wrap:wrap;align-items:flex-end;margin:0 0 16px;padding:12px 14px;background:var(--flaeche);border-top:2px solid var(--orange)}
+.schalter{display:flex;gap:14px 22px;flex-wrap:wrap}
+.gruppe{display:flex;flex-direction:column;gap:4px}
+.gl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--grau)}
+.seg{display:inline-flex;flex-wrap:wrap;border:.5pt solid var(--linie);border-radius:4px;overflow:hidden;background:#fff}
+.seg button{border:0;border-right:.5pt solid var(--linie);background:#fff;padding:6px 12px;font-size:13px;cursor:pointer}
+.seg button:last-child{border-right:0}
+.seg button:hover{background:var(--flaeche)}
+.seg button.an{background:var(--text);color:#fff}
+.seg button small{opacity:.7;margin-left:3px}
+.suche{flex:1 1 220px;min-width:180px;max-width:360px;margin-left:auto}
+.suche input{padding:6px 10px;font-size:14px}
+.treffer{font-size:13px;color:var(--grau);margin:0 0 10px}
+
+.zuo{display:inline-block;font-size:11px;font-weight:500;padding:1px 8px;border-radius:10px;white-space:nowrap;border:1px solid transparent}
+.zuo.nacht{background:var(--nacht2);color:#fff}
+.zuo.licht{background:#fff3e3;color:var(--orange-dunkel);border-color:var(--orange)}
+.zuo.beides{background:linear-gradient(90deg,var(--nacht2) 0%,var(--nacht2) 45%,var(--orange) 100%);color:#fff}
+
+.tabellenrahmen{overflow-x:auto;border:.5pt solid var(--linie);border-top:4px solid var(--orange);background:#fff;padding:0 14px 6px}
+.tabelle.gross{margin-top:0;min-width:760px}
+.tabelle.gross td,.tabelle .bem{font-size:13px}
+.sortbtn{border:0;background:transparent;padding:0;font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit;font-weight:700;cursor:pointer}
+.sortbtn:hover{color:var(--text)}
+.gedaempft{color:var(--grau);font-size:12px}
+.tabelle td.aktion{white-space:nowrap;text-align:right;padding-right:0}
+.tabelle .bem{color:var(--grau);font-style:italic}
+.komp header{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.komp h3{font-size:17px}
+@media (max-width:640px){
+  .werkzeug{padding:10px}
+  .suche{max-width:none;margin-left:0}
+  .tabellenrahmen{padding:0 10px}
+  .tabelle.gross{min-width:640px}
+}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.suche input{width:100%}
