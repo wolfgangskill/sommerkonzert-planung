@@ -20,7 +20,9 @@ npm start
 
 ## Stand der Einrichtung
 
-Der Speicher ist eingerichtet: Google-Tabelle „Konzertplanung Daten SLGM“ mit gebundenem Skript, als Web-App bereitgestellt (Ausführen als Besitzerin/Besitzer, Zugriff „Jeder“, Version 2). Die URL steht schon in `docs/config.js`. Achtung: Das Skript in Google ist noch **Version 2**. Die lokalen Änderungen (Mitwirkende als freies Textfeld, Zuordnung Nacht/Licht an den Stücken, Spalten nach Kopfzeile) müssen vor dem Veröffentlichen dort als neue Version bereitgestellt werden. Jede Aktion in der Seite braucht etwa 2 bis 4 Sekunden, weil Google-Skripte nicht schneller antworten.
+**Veröffentlicht:** https://wolfgangskill.github.io/sommerkonzert-planung/ (GitHub Pages, Branch `main`, Ordner `/docs`). Änderungen an `docs/` gehen nach einem Push nach ca. einer Minute live.
+
+Der Speicher ist eingerichtet: Google-Tabelle „Konzertplanung Daten SLGM“ mit gebundenem Skript, als Web-App bereitgestellt (Ausführen als Besitzerin/Besitzer, Zugriff „Jeder“, Version 3). Die URL steht schon in `docs/config.js`. Jede Aktion in der Seite braucht etwa 2 bis 4 Sekunden, weil Google-Skripte nicht schneller antworten.
 
 Blätter: Konzerte (genau eine Zeile), Ensembles, Stuecke, Aufgaben, Kommentare. Die Blätter „Programm“, „Personen“ und „Tabellenblatt1“ stammen aus früheren Fassungen bzw. sind leer und werden nicht mehr benutzt (können gelöscht werden).
 
